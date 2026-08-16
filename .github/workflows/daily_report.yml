@@ -1,0 +1,58 @@
+name: Daily AI Stock Report
+
+on:
+  schedule:
+    # 每天 UTC 00:00 執行 = 台北時間 (Asia/Taipei, UTC+8) 08:00
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}   # 允許手動觸發，方便測試
+
+permissions:
+  contents: read
+
+jobs:
+  run-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run AI stock analysis and send report
+        env:
+          STOCK_LIST: ${{ secrets.STOCK_LIST }}
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
+          TIMEZONE: "Asia/Taipei"
+        run: python main.py
+
+      # 失敗時把報告輸出（若有產生）當作 artifact 上傳，方便除錯
+      - name: Upload report artifact on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-output
+          path: output/
+          retention-days: 7
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::每日 AI 股票報告執行失敗，請檢查 Actions log 與 Secrets 設定（API金鑰 / Gmail帳密是否正確）。"
