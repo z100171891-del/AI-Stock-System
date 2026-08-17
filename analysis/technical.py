@@ -33,12 +33,22 @@ def judge_technical(df: pd.DataFrame) -> dict:
             "resistance": None,
             "close": None,
             "volume": None,
+            "change_pct": None,
+            "price_history": [],
         }
 
     latest = df.iloc[-1]
     signals = []
     bullish_count = 0
     bearish_count = 0
+
+    # 當日漲跌幅（今日收盤 vs 前一交易日收盤），用來排序「資金集中在哪個族群」
+    change_pct = None
+    if len(df) >= 2:
+        prev_close = df.iloc[-2].get("Close")
+        cur_close = latest.get("Close")
+        if pd.notna(prev_close) and pd.notna(cur_close) and prev_close != 0:
+            change_pct = float((cur_close - prev_close) / prev_close * 100)
 
     # 均線排列
     if pd.notna(latest.get("MA5")) and pd.notna(latest.get("MA20")):
@@ -99,6 +109,12 @@ def judge_technical(df: pd.DataFrame) -> dict:
     support = float(recent["Low"].min()) if "Low" in recent and not recent["Low"].isna().all() else None
     resistance = float(recent["High"].max()) if "High" in recent and not recent["High"].isna().all() else None
 
+    # 近 20 個交易日收盤價序列，給報告畫走勢小圖（sparkline）用，不足 2 筆就給空陣列（不畫圖）
+    price_history = []
+    closes = df["Close"].tail(20)
+    if closes.notna().sum() >= 2:
+        price_history = [round(float(v), 2) for v in closes.dropna().tolist()]
+
     return {
         "trend": trend,
         "signals": signals,
@@ -106,6 +122,8 @@ def judge_technical(df: pd.DataFrame) -> dict:
         "resistance": resistance,
         "close": float(latest["Close"]) if pd.notna(latest.get("Close")) else None,
         "volume": float(latest["Volume"]) if pd.notna(latest.get("Volume")) else None,
+        "change_pct": change_pct,
+        "price_history": price_history,
     }
 
 
